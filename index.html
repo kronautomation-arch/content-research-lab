@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Content Research Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="main-nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">Content Research Lab</a>
+    <div class="nav-links">
+      <a href="#" class="nav-link active" data-tab="overview">Overview</a>
+      <a href="#" class="nav-link" data-tab="brands">Por Marca</a>
+      <a href="#" class="nav-link" data-tab="scripts">Guiones</a>
+      <a href="#" class="nav-link" data-tab="tutorial">Como Usar</a>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main>
+
+<!-- TAB: OVERVIEW -->
+<section id="tab-overview" class="tab-content active">
+
+  <div class="hero">
+    <p class="hero-label">Investigacion Competitiva</p>
+    <h1 class="hero-title">Contenido que<br><em>convierte</em></h1>
+    <p class="hero-sub">Laboratorio automatizado de research para e-commerce.<br>Analiza competidores, identifica ganadores, genera guiones.</p>
+  </div>
+
+  <div class="metrics-row" id="metrics-row">
+    <div class="metric"><span class="metric-value" id="kpi-brands">—</span><span class="metric-label">Marcas</span></div>
+    <div class="metric"><span class="metric-value" id="kpi-competitors">—</span><span class="metric-label">Competidores</span></div>
+    <div class="metric"><span class="metric-value" id="kpi-ads">—</span><span class="metric-label">Ads Trackeados</span></div>
+    <div class="metric"><span class="metric-value" id="kpi-performers">—</span><span class="metric-label">Performers 30d+</span></div>
+    <div class="metric"><span class="metric-value" id="kpi-longrunners">—</span><span class="metric-label">Long-Runners 90d+</span></div>
+    <div class="metric"><span class="metric-value" id="kpi-templates">—</span><span class="metric-label">Guiones</span></div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <div class="section">
+    <p class="section-label">Marcas Registradas</p>
+    <div class="brands-grid" id="brands-list"></div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <div class="section">
+    <p class="section-label">Agregar Nueva Marca</p>
+    <p class="section-desc">Ingresa los datos y el sistema ejecuta el research completo automaticamente.</p>
+    <form id="add-brand-form" class="editorial-form">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Nombre</label>
+          <input type="text" name="name" placeholder="Ej: Zara" required>
+        </div>
+        <div class="form-field">
+          <label>Slug</label>
+          <input type="text" name="slug" placeholder="Ej: zara" required>
+        </div>
+        <div class="form-field">
+          <label>Nicho</label>
+          <input type="text" name="niche" placeholder="Ej: Moda fast-fashion" required>
+        </div>
+        <div class="form-field">
+          <label>Pais</label>
+          <select name="country">
+            <option value="MX">Mexico</option>
+            <option value="CO">Colombia</option>
+            <option value="US">USA</option>
+            <option value="ES">Espana</option>
+            <option value="ALL">Global</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field form-full">
+        <label>Palabras clave</label>
+        <input type="text" name="keywords" placeholder="Separadas por coma: fashion sneakers, urban shoes" required>
+      </div>
+      <div class="form-field form-full">
+        <label>Facebook URL (opcional)</label>
+        <input type="url" name="facebook_url" placeholder="https://facebook.com/tu-marca">
+      </div>
+      <button type="submit" class="btn-primary">Iniciar Research &rarr;</button>
+      <p class="form-note">Tiempo estimado: 45-60 minutos. Costo: ~$6-12 USD.</p>
+    </form>
+    <div id="add-brand-result"></div>
+  </div>
+
+  <p class="last-update" id="last-update"></p>
+</section>
+
+<!-- TAB: POR MARCA -->
+<section id="tab-brands" class="tab-content">
+  <div class="section">
+    <div class="brand-selector">
+      <span class="section-label">Selecciona marca</span>
+      <select id="brand-select"></select>
+    </div>
+  </div>
+  <div id="brand-content"></div>
+</section>
+
+<!-- TAB: GUIONES -->
+<section id="tab-scripts" class="tab-content">
+  <div class="section">
+    <div class="scripts-top">
+      <div>
+        <p class="section-label">Guiones Generados</p>
+        <p class="section-desc" id="scripts-subtitle">Selecciona una marca</p>
+      </div>
+      <div class="scripts-actions">
+        <select id="scripts-brand-select"></select>
+        <button id="generate-scripts-btn" class="btn-primary">Generar 10 nuevos &rarr;</button>
+      </div>
+    </div>
+  </div>
+  <div id="scripts-content"></div>
+</section>
+
+<!-- TAB: TUTORIAL -->
+<section id="tab-tutorial" class="tab-content">
+  <div class="hero">
+    <p class="hero-label">Documentacion</p>
+    <h1 class="hero-title">Como usar<br><em>el laboratorio</em></h1>
+  </div>
+
+  <div class="tutorial-steps">
+    <div class="tut-step" data-step="01">
+      <div class="tut-num">01</div>
+      <div class="tut-body">
+        <h3>Agrega una marca</h3>
+        <p>En Overview, usa el formulario. Necesitas: nombre, slug, nicho, pais, y 3-5 palabras clave del nicho.</p>
+      </div>
+    </div>
+    <div class="tut-step" data-step="02">
+      <div class="tut-num">02</div>
+      <div class="tut-body">
+        <h3>El sistema busca competidores</h3>
+        <p>Busca en Meta Ad Library marcas con +100 ads activos. Aplica filtros inteligentes con fallback automatico. Te presenta un ranking para elegir.</p>
+      </div>
+    </div>
+    <div class="tut-step" data-step="03">
+      <div class="tut-num">03</div>
+      <div class="tut-body">
+        <h3>Baja y analiza los ads</h3>
+        <p>Scrapea todos los ads activos de cada competidor. Claude clasifica cada uno por angulo (Testimonial, Pain-to-Transformation...), hook structure (Question, Raw Shock...) y formato.</p>
+      </div>
+    </div>
+    <div class="tut-step" data-step="04">
+      <div class="tut-num">04</div>
+      <div class="tut-body">
+        <h3>Revisa los insights</h3>
+        <p>En la pestana Por Marca: top 100 ads ganadores ordenados por longevidad, formula ganadora del nicho, breakdown por competidor.</p>
+      </div>
+    </div>
+    <div class="tut-step" data-step="05">
+      <div class="tut-num">05</div>
+      <div class="tut-body">
+        <h3>Genera guiones profesionales</h3>
+        <p>10 estructuras de video con 3 variaciones cada una. Guiones de 40 segundos con beats por segundo, dialogo exacto, instrucciones de camara y produccion.</p>
+      </div>
+    </div>
+    <div class="tut-step" data-step="06">
+      <div class="tut-num">06</div>
+      <div class="tut-body">
+        <h3>Produce y repite</h3>
+        <p>Los guiones son listos para leer ante camara. Genera nuevos sets en cualquier momento con el boton "Generar 10 nuevos".</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tut-info">
+    <h3>Longevidad = Rentabilidad</h3>
+    <p>Si un ad lleva 30+ dias corriendo, es porque convierte. El sistema prioriza esos ads como fuente para los guiones.</p>
+    <div class="tut-tiers">
+      <span>0-7d <em>Nuevo</em></span>
+      <span>8-29d <em>Testing</em></span>
+      <span>30-89d <em>Performer</em></span>
+      <span>90d+ <em>Long-runner</em></span>
+    </div>
+  </div>
+
+  <div class="tut-info">
+    <h3>Costos por marca</h3>
+    <p>Apify ~$2-5 &middot; Claude API ~$3-5 &middot; Whisper ~$1-2 (opcional)</p>
+    <p><strong>Total: ~$6-12 USD por marca.</strong></p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <span>Content Research Lab</span>
+    <span>Meta Ad Library &middot; Claude API &middot; Apify</span>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
