@@ -305,6 +305,8 @@ function filterCompAds(brand) {
 // ============================================
 // RECREAR AD CON CANVA
 // ============================================
+const API_URL = 'http://localhost:8000';
+
 function openRecreateModal(adId) {
   const ad = _adMap[adId];
   if (!ad) return;
@@ -327,7 +329,8 @@ function openRecreateModal(adId) {
         <h3>🎨 Recrear con tu marca</h3>
         <button class="modal-close" onclick="document.getElementById('recreate-modal').remove()">✕</button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" id="recreate-modal-body">
+
         <div class="modal-ref">
           <p class="modal-section-label">AD DE REFERENCIA</p>
           <div class="modal-ref-card">
@@ -341,7 +344,6 @@ function openRecreateModal(adId) {
               </div>
               ${ad.angle ? `<div class="modal-ref-meta">Ángulo: <strong>${esc(ad.angle)}</strong></div>` : ''}
               ${ad.spoken_hook_structure ? `<div class="modal-ref-meta">Hook: <strong>${esc(ad.spoken_hook_structure)}</strong></div>` : ''}
-              ${ad.ad_text ? `<div class="modal-ref-text">${esc(ad.ad_text.substring(0, 200))}${ad.ad_text.length > 200 ? '...' : ''}</div>` : ''}
             </div>
           </div>
         </div>
@@ -352,18 +354,19 @@ function openRecreateModal(adId) {
             <select id="recreate-brand-select" class="modal-select">${brandOptions}</select>
           </label>
           <label class="modal-label">URL de la imagen del producto
-            <input type="url" id="recreate-image-url" class="modal-input" placeholder="https://... (foto del producto en fondo blanco o lifestyle)">
+            <input type="url" id="recreate-image-url" class="modal-input" placeholder="https://... (foto del producto)">
           </label>
         </div>
 
-        <div class="modal-command-section">
-          <p class="modal-section-label">COMANDO PARA TERMINAL</p>
-          <div class="modal-command-box">
-            <code id="recreate-command">python tools/generation/recreate_image_ad.py --ad-id ${ad.id} --target-brand-slug <span class="cmd-brand">${ownBrands[0]?.slug || 'tu-marca'}</span> --product-image-url <span class="cmd-url">TU_URL_AQUI</span></code>
-          </div>
-          <button class="btn-copy-command" onclick="copyRecreateCommand()">Copiar Comando</button>
-          <p class="modal-hint">Pega este comando en tu terminal, luego trae el output a Claude Code para generar el diseño en Canva.</p>
-        </div>
+        <div id="recreate-status"></div>
+
+        <button class="btn-generate-now" id="btn-generate-now" onclick="runRecreateFull('${ad.id}')">
+          ✨ Generar Ahora
+        </button>
+
+        <p class="modal-hint" id="server-hint" style="display:none">
+          ⚠️ Servidor no detectado. Inícialo con: <code>run_api.bat</code> (o <code>python api.py</code>)
+        </p>
       </div>
     </div>
   `;
@@ -371,26 +374,97 @@ function openRecreateModal(adId) {
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 
-  // Actualizar comando en tiempo real
-  const brandSel = document.getElementById('recreate-brand-select');
-  const urlInput = document.getElementById('recreate-image-url');
-  function updateCommand() {
-    const slug = brandSel.value || 'tu-marca';
-    const url = urlInput.value.trim() || 'TU_URL_AQUI';
-    document.querySelector('#recreate-command .cmd-brand').textContent = slug;
-    document.querySelector('#recreate-command .cmd-url').textContent = url;
-  }
-  brandSel.addEventListener('change', updateCommand);
-  urlInput.addEventListener('input', updateCommand);
+  // Verificar si el servidor está corriendo
+  fetch(`${API_URL}/health`).catch(() => {
+    document.getElementById('server-hint').style.display = 'block';
+  });
 }
 
-function copyRecreateCommand() {
-  const cmd = document.getElementById('recreate-command').textContent;
-  navigator.clipboard.writeText(cmd).then(() => {
-    const btn = document.querySelector('.btn-copy-command');
-    btn.textContent = '✓ Copiado';
-    setTimeout(() => { btn.textContent = 'Copiar Comando'; }, 2000);
-  });
+async function runRecreateFull(adId) {
+  const brandSlug = document.getElementById('recreate-brand-select').value;
+  const imageUrl = document.getElementById('recreate-image-url').value.trim();
+  const statusEl = document.getElementById('recreate-status');
+  const btn = document.getElementById('btn-generate-now');
+
+  if (!imageUrl) {
+    statusEl.innerHTML = '<p class="recreate-error">⚠️ Ingresa la URL de la imagen del producto.</p>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+  statusEl.innerHTML = `
+    <div class="recreate-loading">
+      <div class="recreate-spinner"></div>
+      <span>Claude está analizando el ad y generando el copy...</span>
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`${API_URL}/recreate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ad_id: adId,
+        target_brand_slug: brandSlug,
+        product_image_url: imageUrl,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Error del servidor');
+    }
+
+    const data = await res.json();
+    const b = data.brief;
+    const db = b.design_brief || {};
+    const canva = data.canva || {};
+
+    const canvaSection = canva.available && canva.edit_url ? `
+      <div class="recreate-canva-link">
+        <a href="${canva.edit_url}" target="_blank" class="btn-open-canva">🎨 Abrir en Canva →</a>
+        ${canva.asset_id ? `<span class="canva-asset-note">Imagen subida a tus assets de Canva</span>` : ''}
+      </div>
+    ` : `
+      <div class="recreate-canva-link">
+        <p class="canva-note">💡 Para crear en Canva automáticamente agrega <code>CANVA_ACCESS_TOKEN</code> al <code>.env</code></p>
+      </div>
+    `;
+
+    statusEl.innerHTML = `
+      <div class="recreate-result">
+        <div class="result-section">
+          <p class="modal-section-label">COPY GENERADO — ${data.target_brand.name}</p>
+          <div class="copy-block">
+            <div class="copy-row"><span class="copy-label">Headline</span><span class="copy-value">${esc(b.headline)}</span></div>
+            <div class="copy-row"><span class="copy-label">Subtitular</span><span class="copy-value">${esc(b.subheadline)}</span></div>
+            <div class="copy-row copy-body-row"><span class="copy-label">Body</span><span class="copy-value">${esc(b.body)}</span></div>
+            <div class="copy-row"><span class="copy-label">CTA</span><span class="copy-value cta-val">${esc(b.cta)}</span></div>
+          </div>
+        </div>
+        <div class="result-section">
+          <p class="modal-section-label">BRIEF DE DISEÑO</p>
+          <div class="brief-block">
+            ${db.layout ? `<div class="brief-row"><span>Layout</span><span>${esc(db.layout)}</span></div>` : ''}
+            ${db.color_suggestion ? `<div class="brief-row"><span>Colores</span><span>${esc(db.color_suggestion)}</span></div>` : ''}
+            ${db.product_placement ? `<div class="brief-row"><span>Producto</span><span>${esc(db.product_placement)}</span></div>` : ''}
+            ${db.style_notes ? `<div class="brief-row"><span>Estilo</span><span>${esc(db.style_notes)}</span></div>` : ''}
+          </div>
+        </div>
+        ${canvaSection}
+        <div class="result-hook">
+          <p class="modal-section-label">HOOK ADAPTADO</p>
+          <div class="hook-text">"${esc(b.hook_adapted)}"</div>
+        </div>
+      </div>
+    `;
+    btn.textContent = '✓ Generado';
+  } catch (err) {
+    statusEl.innerHTML = `<p class="recreate-error">❌ ${esc(err.message)}<br><small>¿Está corriendo el servidor? Ejecuta <code>run_api.bat</code></small></p>`;
+    btn.disabled = false;
+    btn.textContent = '✨ Generar Ahora';
+  }
 }
 
 // ============================================
