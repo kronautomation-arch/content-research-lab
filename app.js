@@ -170,12 +170,30 @@ function renderBrandDetail(slug) {
       <h3>Top 100 Ads Ganadores</h3>
       <div class="filter-bar">
         <input type="text" id="search-comp-ads" placeholder="Buscar...">
-        <select id="filter-tier-comp">
-          <option value="">Todos</option>
-          <option value="long-runner">Long-runners</option>
-          <option value="performer">Performers</option>
-        </select>
+        <div class="filter-select-wrap">
+          <select id="filter-tier-comp">
+            <option value="">Todos</option>
+            <option value="long-runner">Long-runners</option>
+            <option value="performer">Performers</option>
+            <option value="winner">Ganador Probado (score≥60)</option>
+            <option value="hook-viral">Hook Viral (3+ veces)</option>
+          </select>
+          <button class="legend-btn" id="legend-toggle" title="Qué significa cada filtro">ⓘ</button>
+        </div>
       </div>
+    </div>
+    <div class="filter-legend" id="filter-legend" style="display:none">
+      <div class="legend-grid">
+        <div class="legend-item"><span class="legend-dot dot-lr"></span><strong>Long-runner</strong> — Activo 90+ días. La plataforma sigue pagando para mostrarlo = ROI probado.</div>
+        <div class="legend-item"><span class="legend-dot dot-pf"></span><strong>Performer</strong> — Activo 30-89 días. Pasó la fase de prueba, está generando resultados.</div>
+        <div class="legend-item"><span class="legend-dot dot-ws"></span><strong>Ganador Probado (score≥60)</strong> — Score compuesto: días corriendo (40pts) + hook frecuente (25pts) + ángulo top (20pts) + transcript (10pts) + tier (5pts).</div>
+        <div class="legend-item"><span class="legend-dot dot-hv"></span><strong>Hook Viral</strong> — El mismo framework de hook aparece en 3+ ads ganadores de la competencia = patrón validado.</div>
+      </div>
+    </div>
+    <div class="media-tabs">
+      <button class="media-tab active" data-media="all">Todos</button>
+      <button class="media-tab" data-media="video">Videos</button>
+      <button class="media-tab" data-media="image">Imágenes</button>
     </div>
     <div class="ads-grid" id="comp-ads-grid"></div>
   `;
@@ -198,7 +216,23 @@ function renderBrandDetail(slug) {
     if (el) el.addEventListener('input', () => filterCompAds(brand));
   });
 
-  // content loaded
+  document.querySelectorAll('.media-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.media-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterCompAds(brand);
+    });
+  });
+
+  const legendBtn = document.getElementById('legend-toggle');
+  const legendPanel = document.getElementById('filter-legend');
+  if (legendBtn && legendPanel) {
+    legendBtn.addEventListener('click', () => {
+      const visible = legendPanel.style.display !== 'none';
+      legendPanel.style.display = visible ? 'none' : 'block';
+      legendBtn.classList.toggle('active', !visible);
+    });
+  }
 }
 
 function renderAdsGrid(ads, containerId) {
@@ -208,18 +242,29 @@ function renderAdsGrid(ads, containerId) {
   c.innerHTML = ads.map(ad => {
     const tier = ad.longevity_tier || 'new';
     const tierLabel = { 'long-runner': 'Long-runner', 'performer': 'Performer', 'testing': 'Testing', 'new': 'New' }[tier] || tier;
-    const thumb = ad.thumbnail_url
-      ? `<img src="${ad.thumbnail_url}" alt="" onerror="this.parentElement.innerHTML='<div class=ad-thumb-placeholder>&mdash;</div>'">`
-      : '<div class="ad-thumb-placeholder">&mdash;</div>';
+    const isVideo = (ad.display_format||'').toLowerCase().includes('video');
+    const initial = (ad.page_name||'?')[0].toUpperCase();
+    let mediaEl = '';
+    if (isVideo && ad.media_url) {
+      const poster = ad.thumbnail_url ? ` poster="${ad.thumbnail_url}"` : '';
+      mediaEl = `<video${poster} preload="none" controls class="ad-thumb-media"><source src="${ad.media_url}"></video>`;
+    } else if (ad.thumbnail_url) {
+      mediaEl = `<img src="${ad.thumbnail_url}" alt="" class="ad-thumb-media" onerror="this.style.display='none'">`;
+    } else if (ad.media_url) {
+      mediaEl = `<img src="${ad.media_url}" alt="" class="ad-thumb-media" onerror="this.style.display='none'">`;
+    }
 
     return `
       <div class="ad-card">
         <div class="ad-thumb">
-          ${thumb}
+          <div class="ad-thumb-fallback">${initial}</div>
+          ${mediaEl}
           <div class="ad-badges">
             <span class="ad-badge badge-${tier}">${tierLabel}</span>
             <span class="ad-badge">${ad.days_running || 0}d</span>
+            ${(ad.winner_score || 0) >= 60 ? `<span class="ad-badge badge-winner">⚡ ${ad.winner_score}pts</span>` : ''}
           </div>
+          ${ad.ad_archive_id && !isVideo ? `<a href="https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}" target="_blank" class="ad-thumb-overlay-link" title="Ver en Ad Library"></a>` : ''}
         </div>
         <div class="ad-body">
           <div class="ad-page-name">${ad.page_name || ''}</div>
@@ -239,9 +284,14 @@ function renderAdsGrid(ads, containerId) {
 function filterCompAds(brand) {
   const s = (document.getElementById('search-comp-ads')?.value || '').toLowerCase();
   const t = document.getElementById('filter-tier-comp')?.value || '';
+  const media = document.querySelector('.media-tab.active')?.dataset.media || 'all';
   let f = brand.top_100_competitor_ads;
   if (s) f = f.filter(a => (a.ad_text||'').toLowerCase().includes(s) || (a.page_name||'').toLowerCase().includes(s) || (a.angle||'').toLowerCase().includes(s));
-  if (t) f = f.filter(a => a.longevity_tier === t);
+  if (t === 'winner') f = f.filter(a => (a.winner_score || 0) >= 60);
+  else if (t === 'hook-viral') f = f.filter(a => (a.hook_frequency || 0) >= 3);
+  else if (t) f = f.filter(a => a.longevity_tier === t);
+  if (media === 'video') f = f.filter(a => (a.display_format||'').toLowerCase().includes('video'));
+  else if (media === 'image') f = f.filter(a => !(a.display_format||'').toLowerCase().includes('video'));
   renderAdsGrid(f, 'comp-ads-grid');
 }
 
