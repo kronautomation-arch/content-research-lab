@@ -235,9 +235,13 @@ function renderBrandDetail(slug) {
   }
 }
 
+const _adMap = {};
+
 function renderAdsGrid(ads, containerId) {
   const c = document.getElementById(containerId);
   if (!c || !ads.length) { if (c) c.innerHTML = '<div class="loading-state">Sin ads.</div>'; return; }
+
+  ads.forEach(ad => { _adMap[ad.id] = ad; });
 
   c.innerHTML = ads.map(ad => {
     const tier = ad.longevity_tier || 'new';
@@ -274,7 +278,10 @@ function renderAdsGrid(ads, containerId) {
             ${ad.angle ? `<span>${ad.angle}</span>` : ''}
             ${ad.spoken_hook_structure ? `<span>${ad.spoken_hook_structure}</span>` : ''}
           </div>
-          <a href="https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}" target="_blank" class="ad-link">Ver en Ad Library &rarr;</a>
+          <div class="ad-actions">
+            <a href="https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}" target="_blank" class="ad-link">Ver en Ad Library &rarr;</a>
+            ${!isVideo ? `<button class="btn-recrear" onclick="openRecreateModal('${ad.id}')">🎨 Recrear</button>` : ''}
+          </div>
         </div>
       </div>
     `;
@@ -293,6 +300,97 @@ function filterCompAds(brand) {
   if (media === 'video') f = f.filter(a => (a.display_format||'').toLowerCase().includes('video'));
   else if (media === 'image') f = f.filter(a => !(a.display_format||'').toLowerCase().includes('video'));
   renderAdsGrid(f, 'comp-ads-grid');
+}
+
+// ============================================
+// RECREAR AD CON CANVA
+// ============================================
+function openRecreateModal(adId) {
+  const ad = _adMap[adId];
+  if (!ad) return;
+  const ownBrands = DATA.brands.filter(b => b.is_own_brand);
+  const brandOptions = ownBrands.length
+    ? ownBrands.map(b => `<option value="${b.slug}">${b.name}</option>`).join('')
+    : '<option value="">— Sin marcas propias registradas —</option>';
+
+  const tierLabel = { 'long-runner': 'Long-runner', 'performer': 'Performer', 'testing': 'Testing', 'new': 'New' }[ad.longevity_tier] || ad.longevity_tier || '';
+  const thumb = ad.thumbnail_url
+    ? `<img src="${ad.thumbnail_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" onerror="this.style.display='none'">`
+    : '';
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'recreate-modal';
+  modal.innerHTML = `
+    <div class="modal-recrear">
+      <div class="modal-header">
+        <h3>🎨 Recrear con tu marca</h3>
+        <button class="modal-close" onclick="document.getElementById('recreate-modal').remove()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-ref">
+          <p class="modal-section-label">AD DE REFERENCIA</p>
+          <div class="modal-ref-card">
+            ${thumb ? `<div class="modal-thumb">${thumb}</div>` : ''}
+            <div class="modal-ref-info">
+              <div class="modal-ref-brand">${esc(ad.page_name || '')}</div>
+              <div class="modal-ref-tags">
+                <span class="ad-badge badge-${ad.longevity_tier || 'new'}">${tierLabel}</span>
+                <span class="ad-badge">${ad.days_running || 0}d</span>
+                ${(ad.winner_score || 0) >= 60 ? `<span class="ad-badge badge-winner">⚡ ${ad.winner_score}pts</span>` : ''}
+              </div>
+              ${ad.angle ? `<div class="modal-ref-meta">Ángulo: <strong>${esc(ad.angle)}</strong></div>` : ''}
+              ${ad.spoken_hook_structure ? `<div class="modal-ref-meta">Hook: <strong>${esc(ad.spoken_hook_structure)}</strong></div>` : ''}
+              ${ad.ad_text ? `<div class="modal-ref-text">${esc(ad.ad_text.substring(0, 200))}${ad.ad_text.length > 200 ? '...' : ''}</div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-form">
+          <p class="modal-section-label">CONFIGURAR ADAPTACIÓN</p>
+          <label class="modal-label">¿Para qué marca?
+            <select id="recreate-brand-select" class="modal-select">${brandOptions}</select>
+          </label>
+          <label class="modal-label">URL de la imagen del producto
+            <input type="url" id="recreate-image-url" class="modal-input" placeholder="https://... (foto del producto en fondo blanco o lifestyle)">
+          </label>
+        </div>
+
+        <div class="modal-command-section">
+          <p class="modal-section-label">COMANDO PARA TERMINAL</p>
+          <div class="modal-command-box">
+            <code id="recreate-command">python tools/generation/recreate_image_ad.py --ad-id ${ad.id} --target-brand-slug <span class="cmd-brand">${ownBrands[0]?.slug || 'tu-marca'}</span> --product-image-url <span class="cmd-url">TU_URL_AQUI</span></code>
+          </div>
+          <button class="btn-copy-command" onclick="copyRecreateCommand()">Copiar Comando</button>
+          <p class="modal-hint">Pega este comando en tu terminal, luego trae el output a Claude Code para generar el diseño en Canva.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  // Actualizar comando en tiempo real
+  const brandSel = document.getElementById('recreate-brand-select');
+  const urlInput = document.getElementById('recreate-image-url');
+  function updateCommand() {
+    const slug = brandSel.value || 'tu-marca';
+    const url = urlInput.value.trim() || 'TU_URL_AQUI';
+    document.querySelector('#recreate-command .cmd-brand').textContent = slug;
+    document.querySelector('#recreate-command .cmd-url').textContent = url;
+  }
+  brandSel.addEventListener('change', updateCommand);
+  urlInput.addEventListener('input', updateCommand);
+}
+
+function copyRecreateCommand() {
+  const cmd = document.getElementById('recreate-command').textContent;
+  navigator.clipboard.writeText(cmd).then(() => {
+    const btn = document.querySelector('.btn-copy-command');
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => { btn.textContent = 'Copiar Comando'; }, 2000);
+  });
 }
 
 // ============================================
