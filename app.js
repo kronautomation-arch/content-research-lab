@@ -356,6 +356,10 @@ function openRecreateModal(adId) {
           <label class="modal-label">URL de la imagen del producto
             <input type="url" id="recreate-image-url" class="modal-input" placeholder="https://... (foto del producto)">
           </label>
+          <label class="modal-label" id="competitor-upload-label">📸 Imagen del ad del competidor
+            <input type="file" id="competitor-image-file" accept="image/*" class="modal-file-input">
+            <span class="modal-file-hint">Sube una captura del ad que quieres replicar (para ⚡ Copiar Estilo)</span>
+          </label>
         </div>
 
         <div id="recreate-status"></div>
@@ -370,7 +374,7 @@ function openRecreateModal(adId) {
         </div>
         <p class="recreate-modes-hint">
           <strong>Recrear con mi marca</strong>: copy adaptado + brief de diseño.<br>
-          <strong>Copiar Estilo Exacto</strong>: IA replica el visual del ad con tu producto (GPT-4o + DALL-E 3).
+          <strong>Copiar Estilo Exacto</strong>: IA replica el visual del ad con tu producto. Sube la imagen del competidor para mejor resultado.
         </p>
 
         <p class="modal-hint" id="server-hint" style="display:none">
@@ -482,9 +486,23 @@ async function runRecreateFull(adId) {
   }
 }
 
+function _fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // result es "data:image/jpeg;base64,XXXX" — extraer solo el base64
+      const b64 = reader.result.split(',')[1];
+      resolve(b64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 async function runCopyStyle(adId) {
   const brandSlug = document.getElementById('recreate-brand-select').value;
   const imageUrl = document.getElementById('recreate-image-url').value.trim();
+  const fileInput = document.getElementById('competitor-image-file');
   const statusEl = document.getElementById('recreate-status');
   const btn = document.getElementById('btn-copy-style');
   const btn2 = document.getElementById('btn-generate-now');
@@ -494,19 +512,37 @@ async function runCopyStyle(adId) {
     return;
   }
 
+  // Leer archivo del competidor si el usuario subió uno
+  let competitorB64 = '';
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    try {
+      competitorB64 = await _fileToBase64(fileInput.files[0]);
+    } catch(e) {
+      console.warn('No se pudo leer la imagen del competidor:', e);
+    }
+  }
+
   btn.disabled = true; btn2.disabled = true;
   btn.textContent = 'Generando...';
+  const modeMsg = competitorB64
+    ? 'gpt-image-1 replica el estilo del competidor con tu producto...'
+    : 'gpt-image-1 genera imagen con tu producto... (sube imagen del competidor para mejor resultado)';
   statusEl.innerHTML = `
     <div class="recreate-loading">
       <div class="recreate-spinner"></div>
-      <span>GPT-4o analiza el ad... DALL-E 3 genera la imagen... (~20 seg)</span>
+      <span>${modeMsg} (~30 seg)</span>
     </div>`;
 
   try {
     const res = await fetch(`${API_URL}/recreate-image`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ad_id: adId, target_brand_slug: brandSlug, product_image_url: imageUrl }),
+      body: JSON.stringify({
+        ad_id: adId,
+        target_brand_slug: brandSlug,
+        product_image_url: imageUrl,
+        competitor_image_b64: competitorB64,
+      }),
     });
 
     if (!res.ok) {

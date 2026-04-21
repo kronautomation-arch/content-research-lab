@@ -528,6 +528,17 @@ main {
   outline: none; width: 100%;
 }
 .modal-select:focus, .modal-input:focus { border-color: var(--text); }
+.modal-file-input {
+  font-family: inherit; font-size: 13px; padding: 8px 0;
+  color: var(--text-secondary); cursor: pointer; width: 100%;
+}
+.modal-file-input::file-selector-button {
+  font-family: inherit; font-size: 12px; font-weight: 500;
+  padding: 6px 12px; margin-right: 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-input); background: var(--bg-card);
+  color: var(--text); cursor: pointer; transition: background 0.15s;
+}
+.modal-file-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .modal-command-section { display: flex; flex-direction: column; gap: 10px; }
 .modal-command-box {
   padding: 12px 16px; background: #0d1117; border-radius: var(--radius-sm);
