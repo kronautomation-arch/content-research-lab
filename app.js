@@ -356,10 +356,15 @@ function openRecreateModal(adId) {
           <label class="modal-label">URL de la imagen del producto
             <input type="url" id="recreate-image-url" class="modal-input" placeholder="https://... (foto del producto)">
           </label>
-          <label class="modal-label" id="competitor-upload-label">📸 Imagen del ad del competidor
-            <input type="file" id="competitor-image-file" accept="image/*" class="modal-file-input">
-            <span class="modal-file-hint">Sube una captura del ad que quieres replicar (para ⚡ Copiar Estilo)</span>
-          </label>
+          <div class="competitor-img-section">
+            <p class="modal-label-text">📸 Imagen del ad del competidor</p>
+            <div id="competitor-img-preview" class="competitor-img-preview">
+              <span class="competitor-img-status" id="competitor-img-status">Cargando imagen...</span>
+            </div>
+            <label class="modal-label-sub">O sube una captura manualmente:
+              <input type="file" id="competitor-image-file" accept="image/*" class="modal-file-input">
+            </label>
+          </div>
         </div>
 
         <div id="recreate-status"></div>
@@ -387,10 +392,42 @@ function openRecreateModal(adId) {
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 
-  // Verificar si el servidor está corriendo
-  fetch(`${API_URL}/health`).catch(() => {
-    document.getElementById('server-hint').style.display = 'block';
-  });
+  // Verificar servidor + intentar auto-descargar imagen del competidor via proxy
+  fetch(`${API_URL}/health`)
+    .then(() => {
+      // Servidor OK — intentar cargar la imagen del competidor
+      if (ad.thumbnail_url) {
+        const proxyUrl = `${API_URL}/proxy-image?url=${encodeURIComponent(ad.thumbnail_url)}`;
+        const statusEl = document.getElementById('competitor-img-status');
+        const previewEl = document.getElementById('competitor-img-preview');
+        fetch(proxyUrl)
+          .then(r => {
+            if (!r.ok) throw new Error('no-image');
+            return r.blob();
+          })
+          .then(blob => {
+            const objectUrl = URL.createObjectURL(blob);
+            // Guardar como base64 para enviar al backend
+            const reader = new FileReader();
+            reader.onload = () => {
+              previewEl.dataset.b64 = reader.result.split(',')[1];
+            };
+            reader.readAsDataURL(blob);
+            previewEl.innerHTML = `<img src="${objectUrl}" alt="Ad competidor" style="width:100%;border-radius:6px;display:block;">`;
+          })
+          .catch(() => {
+            if (statusEl) statusEl.textContent = 'No se pudo descargar automáticamente — sube la imagen manualmente.';
+          });
+      } else {
+        const statusEl = document.getElementById('competitor-img-status');
+        if (statusEl) statusEl.textContent = 'Sin thumbnail disponible — sube la imagen manualmente.';
+      }
+    })
+    .catch(() => {
+      document.getElementById('server-hint').style.display = 'block';
+      const statusEl = document.getElementById('competitor-img-status');
+      if (statusEl) statusEl.textContent = 'Inicia el servidor para auto-cargar la imagen.';
+    });
 }
 
 async function runRecreateFull(adId) {
@@ -512,13 +549,19 @@ async function runCopyStyle(adId) {
     return;
   }
 
-  // Leer archivo del competidor si el usuario subió uno
+  // Prioridad: archivo manual del usuario > imagen auto-descargada via proxy
   let competitorB64 = '';
   if (fileInput && fileInput.files && fileInput.files[0]) {
     try {
       competitorB64 = await _fileToBase64(fileInput.files[0]);
     } catch(e) {
       console.warn('No se pudo leer la imagen del competidor:', e);
+    }
+  }
+  if (!competitorB64) {
+    const previewEl = document.getElementById('competitor-img-preview');
+    if (previewEl && previewEl.dataset.b64) {
+      competitorB64 = previewEl.dataset.b64;
     }
   }
 
