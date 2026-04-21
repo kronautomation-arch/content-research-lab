@@ -701,6 +701,13 @@ function renderScripts(slug) {
           </div>
           <div class="variation-quick">
             <div><strong>Hook</strong> ${esc(v.hook || '')}</div>
+            ${(v.pain_points && v.pain_points.length) ? `
+            <div class="pain-points-block">
+              <strong>Puntos de dolor</strong>
+              <ol class="pain-points-list">
+                ${v.pain_points.map(p => `<li>${esc(p)}</li>`).join('')}
+              </ol>
+            </div>` : ''}
             <div><strong>Body</strong> ${esc((v.body || '').substring(0, 400))}</div>
             <div><strong>CTA</strong> ${esc(v.cta || '')}</div>
           </div>
@@ -895,3 +902,200 @@ function esc(str) {
   if (!str) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ============================================
+// PIPELINE SETUP
+// ============================================
+let _pipeState = { brandSlug: '', keywords: [], candidates: [] };
+
+document.addEventListener('DOMContentLoaded', () => {
+  fetch(`${API_URL}/health`)
+    .catch(() => {
+      const w = document.getElementById('pipeline-server-warning');
+      if (w) w.style.display = 'block';
+    });
+});
+
+function _pipeUnlock(stepNum) {
+  const el = document.getElementById(`step-${stepNum}`);
+  if (el) el.classList.remove('locked');
+}
+function _pipeSetStatus(stepNum, text, ok) {
+  const el = document.getElementById(`step-${stepNum}-status`);
+  if (el) { el.textContent = text; el.className = 'step-status ' + (ok ? 'status-ok' : 'status-err'); }
+}
+function _pipeSetResult(stepNum, html) {
+  const el = document.getElementById(`step-${stepNum}-result`);
+  if (el) el.innerHTML = html;
+}
+function _pipeLoading(stepNum, msg) {
+  _pipeSetResult(stepNum, `<div class="pipe-loading"><div class="recreate-spinner"></div><span>${esc(msg)}</span></div>`);
+}
+
+async function pipeStep1Validate() {
+  const slug = document.getElementById('pipe-brand-slug').value.trim();
+  const kw = document.getElementById('pipe-keywords').value.trim();
+  if (!slug || !kw) { _pipeSetResult(1, '<p class="pipe-error">Completa brand slug y keywords.</p>'); return; }
+  _pipeLoading(1, 'Verificando marca...');
+  try {
+    const r = await fetch(`${API_URL}/health`);
+    if (!r.ok) throw new Error('Servidor no disponible');
+    _pipeState.brandSlug = slug;
+    _pipeState.keywords = kw.split(',').map(k => k.trim()).filter(Boolean);
+    _pipeSetStatus(1, '✓', true);
+    _pipeSetResult(1, `<p class="pipe-ok">Marca: <strong>${esc(slug)}</strong> | Keywords: <strong>${esc(_pipeState.keywords.join(', '))}</strong></p>`);
+    _pipeUnlock(2);
+  } catch(e) {
+    _pipeSetResult(1, `<p class="pipe-error">❌ ${esc(e.message)} — ¿Está corriendo run_api.bat?</p>`);
+  }
+}
+
+async function pipeStep2Discover() {
+  if (!_pipeState.brandSlug) { _pipeSetResult(2, '<p class="pipe-error">Completa el paso 1 primero.</p>'); return; }
+  _pipeLoading(2, 'Buscando competidores en Facebook Ad Library (puede tardar 2-5 min)...');
+  try {
+    const r = await fetch(`${API_URL}/pipeline/discover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_slug: _pipeState.brandSlug, keywords: _pipeState.keywords, max_ads_per_keyword: 200, min_candidates: 5 }),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    _pipeState.candidates = data.candidates;
+
+    const logHtml = data.log.map(l => `<div class="pipe-log-line">${esc(l)}</div>`).join('');
+    _pipeSetResult(2, `
+      <div class="pipe-summary">
+        Países buscados: <strong>${esc(data.countries_searched.join(' → '))}</strong> |
+        Ads recolectados: <strong>${data.total_ads_scraped}</strong> |
+        Candidatos encontrados: <strong>${data.candidates.length}</strong>
+      </div>
+      <details class="pipe-log"><summary>Ver log</summary>${logHtml}</details>
+    `);
+    _pipeSetStatus(2, '✓', true);
+
+    // Mostrar candidatos en paso 3
+    _renderCandidates(data.candidates);
+    _pipeUnlock(3);
+  } catch(e) {
+    _pipeSetResult(2, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+    _pipeSetStatus(2, '✗', false);
+  }
+}
+
+function _renderCandidates(candidates) {
+  const list = document.getElementById('candidates-list');
+  if (!list) return;
+  if (!candidates.length) { list.innerHTML = '<p class="pipe-error">No se encontraron candidatos.</p>'; return; }
+  list.innerHTML = candidates.map((c, i) => `
+    <label class="candidate-row">
+      <input type="checkbox" class="candidate-check" value="${esc(c.page_id)}" checked>
+      <div class="candidate-info">
+        <span class="candidate-name">${esc(c.name)}</span>
+        <span class="candidate-stats">${c.ad_count} ads · ${c.long_runners} long-runners (90d+)</span>
+        ${c.sample ? `<span class="candidate-sample">"${esc(c.sample.substring(0,100))}..."</span>` : ''}
+      </div>
+    </label>
+  `).join('');
+  document.getElementById('btn-add-competitors').style.display = 'block';
+  _pipeSetResult(3, '<p class="pipe-hint">Desmarca los que NO sean competidores relevantes, luego haz clic en Agregar.</p>');
+}
+
+async function pipeStep3Add() {
+  const checked = [...document.querySelectorAll('.candidate-check:checked')].map(el => el.value);
+  if (!checked.length) { _pipeSetResult(3, '<p class="pipe-error">Selecciona al menos un competidor.</p>'); return; }
+  _pipeLoading(3, `Agregando ${checked.length} competidores...`);
+  // Guardar discovery tmp para el endpoint
+  try {
+    const r = await fetch(`${API_URL}/pipeline/add-competitors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_slug: _pipeState.brandSlug, selected_page_ids: checked }),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    _pipeSetStatus(3, `✓ ${data.count}`, true);
+    _pipeSetResult(3, `
+      <p class="pipe-ok">✓ <strong>${data.count} competidores agregados</strong>: ${esc(data.added.join(', '))}</p>
+      ${data.errors.length ? `<p class="pipe-error">Errores: ${esc(data.errors.join(', '))}</p>` : ''}
+    `);
+    _pipeUnlock(4);
+  } catch(e) {
+    _pipeSetResult(3, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+  }
+}
+
+async function pipeStep4Scrape() {
+  _pipeLoading(4, 'Descargando ads de todos los competidores (puede tardar 5-15 min)...');
+  try {
+    const r = await fetch(`${API_URL}/pipeline/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_slug: _pipeState.brandSlug, max_ads: 50 }),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    const rows = data.results.map(r =>
+      `<div class="pipe-log-line ${r.status === 'error' ? 'log-err' : ''}">
+        ${r.status === 'ok' ? '✓' : r.status === 'skip' ? '—' : '✗'}
+        <strong>${esc(r.competitor)}</strong>: ${r.status === 'ok' ? `${r.new} nuevos / ${r.found} encontrados` : esc(r.reason || r.error || '')}
+      </div>`
+    ).join('');
+    _pipeSetStatus(4, `✓ ${data.total_new} ads`, true);
+    _pipeSetResult(4, `
+      <div class="pipe-summary">Total nuevos: <strong>${data.total_new}</strong> | Total encontrados: <strong>${data.total_found}</strong></div>
+      <details class="pipe-log"><summary>Detalle por competidor</summary>${rows}</details>
+    `);
+    _pipeUnlock(5);
+  } catch(e) {
+    _pipeSetResult(4, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+    _pipeSetStatus(4, '✗', false);
+  }
+}
+
+async function pipeStep5Classify() {
+  _pipeLoading(5, 'Clasificando ads con Claude Haiku (angle, hook, format)...');
+  try {
+    const r = await fetch(`${API_URL}/pipeline/classify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_slug: _pipeState.brandSlug, limit: 999 }),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    _pipeSetStatus(5, `✓ ${data.classified}`, true);
+    _pipeSetResult(5, `<p class="pipe-ok">✓ <strong>${data.classified} ads clasificados</strong> (${data.failed} fallaron)</p>`);
+    _pipeUnlock(6);
+  } catch(e) {
+    _pipeSetResult(5, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+    _pipeSetStatus(5, '✗', false);
+  }
+}
+
+async function pipeStep6Export() {
+  _pipeLoading(6, 'Exportando dashboard.json y publicando en GitHub Pages...');
+  try {
+    const r = await fetch(`${API_URL}/pipeline/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    _pipeSetStatus(6, '✓', true);
+    _pipeSetResult(6, `
+      <p class="pipe-ok">✓ Dashboard publicado</p>
+      <div class="pipe-summary">
+        Marcas: <strong>${data.brands_exported}</strong> |
+        Ads totales: <strong>${data.total_ads}</strong> |
+        Archivo: <strong>${data.file_size_kb} KB</strong>
+      </div>
+      <p class="pipe-git">${esc(data.git)}</p>
+      <p class="pipe-hint">Recarga el dashboard en 1-2 minutos para ver los nuevos datos.</p>
+    `);
+  } catch(e) {
+    _pipeSetResult(6, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+    _pipeSetStatus(6, '✗', false);
+  }
+}
+

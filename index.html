@@ -19,6 +19,7 @@
       <a href="#" class="nav-link active" data-tab="overview">Overview</a>
       <a href="#" class="nav-link" data-tab="brands">Por Marca</a>
       <a href="#" class="nav-link" data-tab="scripts">Guiones</a>
+      <a href="#" class="nav-link" data-tab="setup">⚙️ Setup</a>
       <a href="#" class="nav-link" data-tab="tutorial">Como Usar</a>
     </div>
   </div>
@@ -194,6 +195,128 @@
     <h3>Costos por marca</h3>
     <p>Apify ~$2-5 &middot; Claude API ~$3-5 &middot; Whisper ~$1-2 (opcional)</p>
     <p><strong>Total: ~$6-12 USD por marca.</strong></p>
+  </div>
+</section>
+
+<!-- TAB: SETUP PIPELINE -->
+<section id="tab-setup" class="tab-content">
+  <div class="hero" style="padding-bottom:32px">
+    <p class="hero-label">Pipeline de Research</p>
+    <h1 class="hero-title" style="font-size:clamp(32px,5vw,56px)">Setup de<br><em>Nueva Marca</em></h1>
+    <p class="hero-sub">Corre el pipeline completo paso a paso desde aquí. El servidor local debe estar corriendo.</p>
+  </div>
+
+  <div id="pipeline-server-warning" class="pipeline-warning" style="display:none">
+    ⚠️ Servidor no detectado. Inicia <code>run_api.bat</code> para usar el pipeline.
+  </div>
+
+  <div class="pipeline-steps">
+
+    <!-- PASO 1 -->
+    <div class="pipeline-step" id="step-1">
+      <div class="step-header">
+        <span class="step-number">1</span>
+        <div>
+          <h3 class="step-title">Configurar marca</h3>
+          <p class="step-desc">Brand slug que ya existe en Supabase + keywords del nicho.</p>
+        </div>
+        <span class="step-status" id="step-1-status"></span>
+      </div>
+      <div class="step-body">
+        <div class="pipeline-form-row">
+          <label>Brand slug
+            <input type="text" id="pipe-brand-slug" placeholder="guffo" class="modal-input">
+          </label>
+          <label>Keywords (separadas por coma)
+            <input type="text" id="pipe-keywords" placeholder="zapatos comodos, calzado sin dolor" class="modal-input">
+          </label>
+        </div>
+        <button class="pipe-btn" onclick="pipeStep1Validate()">Verificar marca →</button>
+        <div id="step-1-result" class="step-result"></div>
+      </div>
+    </div>
+
+    <!-- PASO 2 -->
+    <div class="pipeline-step locked" id="step-2">
+      <div class="step-header">
+        <span class="step-number">2</span>
+        <div>
+          <h3 class="step-title">Descubrir competidores</h3>
+          <p class="step-desc">Busca en Facebook Ad Library por las keywords. Expande países si hay pocos resultados.</p>
+        </div>
+        <span class="step-status" id="step-2-status"></span>
+      </div>
+      <div class="step-body">
+        <button class="pipe-btn" onclick="pipeStep2Discover()">🔍 Buscar competidores (Apify)</button>
+        <div id="step-2-result" class="step-result"></div>
+      </div>
+    </div>
+
+    <!-- PASO 3 -->
+    <div class="pipeline-step locked" id="step-3">
+      <div class="step-header">
+        <span class="step-number">3</span>
+        <div>
+          <h3 class="step-title">Seleccionar competidores</h3>
+          <p class="step-desc">Elige cuáles agregar. Marca solo los que son realmente competidores relevantes.</p>
+        </div>
+        <span class="step-status" id="step-3-status"></span>
+      </div>
+      <div class="step-body">
+        <div id="candidates-list" class="candidates-list"></div>
+        <button class="pipe-btn" id="btn-add-competitors" onclick="pipeStep3Add()" style="display:none">✅ Agregar seleccionados</button>
+        <div id="step-3-result" class="step-result"></div>
+      </div>
+    </div>
+
+    <!-- PASO 4 -->
+    <div class="pipeline-step locked" id="step-4">
+      <div class="step-header">
+        <span class="step-number">4</span>
+        <div>
+          <h3 class="step-title">Scrape de ads</h3>
+          <p class="step-desc">Descarga hasta 50 ads por competidor. Guarda thumbnails en Supabase Storage.</p>
+        </div>
+        <span class="step-status" id="step-4-status"></span>
+      </div>
+      <div class="step-body">
+        <button class="pipe-btn" onclick="pipeStep4Scrape()">⬇️ Descargar ads (Apify)</button>
+        <div id="step-4-result" class="step-result"></div>
+      </div>
+    </div>
+
+    <!-- PASO 5 -->
+    <div class="pipeline-step locked" id="step-5">
+      <div class="step-header">
+        <span class="step-number">5</span>
+        <div>
+          <h3 class="step-title">Clasificar con IA</h3>
+          <p class="step-desc">Claude analiza cada ad: ángulo, hook structure, formato. ~$0.0004 por ad.</p>
+        </div>
+        <span class="step-status" id="step-5-status"></span>
+      </div>
+      <div class="step-body">
+        <button class="pipe-btn" onclick="pipeStep5Classify()">🧠 Clasificar con Claude</button>
+        <div id="step-5-result" class="step-result"></div>
+      </div>
+    </div>
+
+    <!-- PASO 6 -->
+    <div class="pipeline-step locked" id="step-6">
+      <div class="step-header">
+        <span class="step-number">6</span>
+        <div>
+          <h3 class="step-title">Publicar dashboard</h3>
+          <p class="step-desc">Exporta dashboard.json y hace git push a GitHub Pages automáticamente.</p>
+        </div>
+        <span class="step-status" id="step-6-status"></span>
+      </div>
+      <div class="step-body">
+        <button class="pipe-btn" onclick="pipeStep6Export()">🚀 Exportar y publicar</button>
+        <div id="step-6-result" class="step-result"></div>
+      </div>
+    </div>
+
   </div>
 </section>
 
