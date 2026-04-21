@@ -16,10 +16,10 @@
   <div class="nav-inner">
     <a href="#" class="nav-logo">Content Research Lab</a>
     <div class="nav-links">
-      <a href="#" class="nav-link active" data-tab="overview">Overview</a>
+      <a href="#" class="nav-link active" data-tab="setup">⚙️ Setup</a>
+      <a href="#" class="nav-link" data-tab="overview">Overview</a>
       <a href="#" class="nav-link" data-tab="brands">Por Marca</a>
       <a href="#" class="nav-link" data-tab="scripts">Guiones</a>
-      <a href="#" class="nav-link" data-tab="setup">⚙️ Setup</a>
       <a href="#" class="nav-link" data-tab="tutorial">Como Usar</a>
     </div>
   </div>
@@ -29,7 +29,7 @@
 <main>
 
 <!-- TAB: OVERVIEW -->
-<section id="tab-overview" class="tab-content active">
+<section id="tab-overview" class="tab-content">
 
   <div class="hero">
     <p class="hero-label">Investigacion Competitiva</p>
@@ -51,50 +51,6 @@
   <div class="section">
     <p class="section-label">Marcas Registradas</p>
     <div class="brands-grid" id="brands-list"></div>
-  </div>
-
-  <div class="section-divider"></div>
-
-  <div class="section">
-    <p class="section-label">Agregar Nueva Marca</p>
-    <p class="section-desc">Ingresa los datos y el sistema ejecuta el research completo automaticamente.</p>
-    <form id="add-brand-form" class="editorial-form">
-      <div class="form-grid">
-        <div class="form-field">
-          <label>Nombre</label>
-          <input type="text" name="name" placeholder="Ej: Zara" required>
-        </div>
-        <div class="form-field">
-          <label>Slug</label>
-          <input type="text" name="slug" placeholder="Ej: zara" required>
-        </div>
-        <div class="form-field">
-          <label>Nicho</label>
-          <input type="text" name="niche" placeholder="Ej: Moda fast-fashion" required>
-        </div>
-        <div class="form-field">
-          <label>Pais</label>
-          <select name="country">
-            <option value="MX">Mexico</option>
-            <option value="CO">Colombia</option>
-            <option value="US">USA</option>
-            <option value="ES">Espana</option>
-            <option value="ALL">Global</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-field form-full">
-        <label>Palabras clave</label>
-        <input type="text" name="keywords" placeholder="Separadas por coma: fashion sneakers, urban shoes" required>
-      </div>
-      <div class="form-field form-full">
-        <label>Facebook URL (opcional)</label>
-        <input type="url" name="facebook_url" placeholder="https://facebook.com/tu-marca">
-      </div>
-      <button type="submit" class="btn-primary">Iniciar Research &rarr;</button>
-      <p class="form-note">Tiempo estimado: 45-60 minutos. Costo: ~$6-12 USD.</p>
-    </form>
-    <div id="add-brand-result"></div>
   </div>
 
   <p class="last-update" id="last-update"></p>
@@ -199,7 +155,7 @@
 </section>
 
 <!-- TAB: SETUP PIPELINE -->
-<section id="tab-setup" class="tab-content">
+<section id="tab-setup" class="tab-content active">
   <div class="hero" style="padding-bottom:32px">
     <p class="hero-label">Pipeline de Research</p>
     <h1 class="hero-title" style="font-size:clamp(32px,5vw,56px)">Setup de<br><em>Nueva Marca</em></h1>
@@ -211,6 +167,48 @@
   </div>
 
   <div class="pipeline-steps">
+
+    <!-- PASO 0 -->
+    <div class="pipeline-step" id="step-0">
+      <div class="step-header">
+        <span class="step-number" style="background:var(--text-muted)">0</span>
+        <div>
+          <h3 class="step-title">Crear marca</h3>
+          <p class="step-desc">Registra la marca en el sistema. Si ya existe, salta este paso.</p>
+        </div>
+        <span class="step-status" id="step-0-status"></span>
+      </div>
+      <div class="step-body">
+        <div class="pipeline-form-row">
+          <label>Nombre
+            <input type="text" id="pipe-brand-name" placeholder="Ej: Marfil" class="modal-input">
+          </label>
+          <label>Slug (sin espacios)
+            <input type="text" id="pipe-brand-slug-create" placeholder="Ej: marfil" class="modal-input">
+          </label>
+          <label>Nicho
+            <input type="text" id="pipe-brand-niche" placeholder="Ej: lentes ópticos" class="modal-input">
+          </label>
+          <label>País
+            <select id="pipe-brand-country" class="modal-select" style="margin-top:0">
+              <option value="CO">Colombia</option>
+              <option value="MX">México</option>
+              <option value="AR">Argentina</option>
+              <option value="CL">Chile</option>
+              <option value="PE">Perú</option>
+              <option value="US">USA</option>
+              <option value="ES">España</option>
+              <option value="ALL">Global</option>
+            </select>
+          </label>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="pipe-btn" onclick="pipeStep0Create()">➕ Crear marca</button>
+          <button class="pipe-btn" style="background:var(--bg-hover);color:var(--text)" onclick="pipeStep0Skip()">Ya existe → Saltar</button>
+        </div>
+        <div id="step-0-result" class="step-result"></div>
+      </div>
+    </div>
 
     <!-- PASO 1 -->
     <div class="pipeline-step" id="step-1">

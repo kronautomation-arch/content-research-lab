@@ -906,7 +906,7 @@ function esc(str) {
 // ============================================
 // PIPELINE SETUP
 // ============================================
-let _pipeState = { brandSlug: '', keywords: [], candidates: [] };
+let _pipeState = { brandSlug: '', keywords: [], candidates: [], brandName: '' };
 
 document.addEventListener('DOMContentLoaded', () => {
   fetch(`${API_URL}/health`)
@@ -932,18 +932,55 @@ function _pipeLoading(stepNum, msg) {
   _pipeSetResult(stepNum, `<div class="pipe-loading"><div class="recreate-spinner"></div><span>${esc(msg)}</span></div>`);
 }
 
+async function pipeStep0Create() {
+  const name = document.getElementById('pipe-brand-name').value.trim();
+  const slug = document.getElementById('pipe-brand-slug-create').value.trim().toLowerCase().replace(/\s+/g, '-');
+  const niche = document.getElementById('pipe-brand-niche').value.trim();
+  const country = document.getElementById('pipe-brand-country').value;
+  if (!name || !slug) { _pipeSetResult(0, '<p class="pipe-error">Nombre y slug son obligatorios.</p>'); return; }
+  _pipeLoading(0, 'Creando marca...');
+  try {
+    const r = await fetch(`${API_URL}/pipeline/create-brand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, slug, niche, country }),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    _pipeState.brandSlug = slug;
+    _pipeState.brandName = name;
+    // Pre-fill paso 1
+    const slugInput = document.getElementById('pipe-brand-slug');
+    if (slugInput) slugInput.value = slug;
+    _pipeSetStatus(0, '✓', true);
+    _pipeSetResult(0, `<p class="pipe-ok">${data.created ? '✓ Marca creada' : '✓ Marca encontrada'}: <strong>${esc(data.brand.name)}</strong> (${esc(slug)}) · ${esc(country)}</p>`);
+  } catch(e) {
+    _pipeSetResult(0, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+  }
+}
+
+function pipeStep0Skip() {
+  const slug = document.getElementById('pipe-brand-slug-create').value.trim().toLowerCase().replace(/\s+/g, '-');
+  if (!slug) { _pipeSetResult(0, '<p class="pipe-error">Escribe el slug de la marca existente.</p>'); return; }
+  _pipeState.brandSlug = slug;
+  const slugInput = document.getElementById('pipe-brand-slug');
+  if (slugInput) slugInput.value = slug;
+  _pipeSetStatus(0, '✓ skip', true);
+  _pipeSetResult(0, `<p class="pipe-ok">Usando marca existente: <strong>${esc(slug)}</strong></p>`);
+}
+
 async function pipeStep1Validate() {
-  const slug = document.getElementById('pipe-brand-slug').value.trim();
+  const slug = document.getElementById('pipe-brand-slug').value.trim() || _pipeState.brandSlug;
   const kw = document.getElementById('pipe-keywords').value.trim();
   if (!slug || !kw) { _pipeSetResult(1, '<p class="pipe-error">Completa brand slug y keywords.</p>'); return; }
-  _pipeLoading(1, 'Verificando marca...');
+  _pipeLoading(1, 'Verificando...');
   try {
     const r = await fetch(`${API_URL}/health`);
     if (!r.ok) throw new Error('Servidor no disponible');
     _pipeState.brandSlug = slug;
     _pipeState.keywords = kw.split(',').map(k => k.trim()).filter(Boolean);
     _pipeSetStatus(1, '✓', true);
-    _pipeSetResult(1, `<p class="pipe-ok">Marca: <strong>${esc(slug)}</strong> | Keywords: <strong>${esc(_pipeState.keywords.join(', '))}</strong></p>`);
+    _pipeSetResult(1, `<p class="pipe-ok">Marca: <strong>${esc(slug)}</strong> · Keywords: <strong>${esc(_pipeState.keywords.join(', '))}</strong></p>`);
     _pipeUnlock(2);
   } catch(e) {
     _pipeSetResult(1, `<p class="pipe-error">❌ ${esc(e.message)} — ¿Está corriendo run_api.bat?</p>`);
