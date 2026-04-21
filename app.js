@@ -305,7 +305,7 @@ function filterCompAds(brand) {
 // ============================================
 // RECREAR AD CON CANVA
 // ============================================
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://127.0.0.1:8000';
 
 function openRecreateModal(adId) {
   const ad = _adMap[adId];
@@ -360,9 +360,18 @@ function openRecreateModal(adId) {
 
         <div id="recreate-status"></div>
 
-        <button class="btn-generate-now" id="btn-generate-now" onclick="runRecreateFull('${ad.id}')">
-          ✨ Generar Ahora
-        </button>
+        <div class="recreate-btn-group">
+          <button class="btn-generate-now" id="btn-generate-now" onclick="runRecreateFull('${ad.id}')">
+            🎨 Recrear con mi marca
+          </button>
+          <button class="btn-copy-style" id="btn-copy-style" onclick="runCopyStyle('${ad.id}')">
+            ⚡ Copiar Estilo Exacto
+          </button>
+        </div>
+        <p class="recreate-modes-hint">
+          <strong>Recrear con mi marca</strong>: copy adaptado + brief de diseño.<br>
+          <strong>Copiar Estilo Exacto</strong>: IA replica el visual del ad con tu producto (GPT-4o + DALL-E 3).
+        </p>
 
         <p class="modal-hint" id="server-hint" style="display:none">
           ⚠️ Servidor no detectado. Inícialo con: <code>run_api.bat</code> (o <code>python api.py</code>)
@@ -421,14 +430,20 @@ async function runRecreateFull(adId) {
     const db = b.design_brief || {};
     const canva = data.canva || {};
 
-    const canvaSection = canva.available && canva.edit_url ? `
+    const canvaSection = canva.available ? `
       <div class="recreate-canva-link">
-        <a href="${canva.edit_url}" target="_blank" class="btn-open-canva">🎨 Abrir en Canva →</a>
-        ${canva.asset_id ? `<span class="canva-asset-note">Imagen subida a tus assets de Canva</span>` : ''}
+        <p class="modal-section-label">SIGUIENTE PASO — CANVA</p>
+        <div class="canva-actions">
+          <a href="${canva.edit_url}" target="_blank" class="btn-open-canva">🎨 Crear diseño en Canva →</a>
+          ${canva.asset_id ? `<a href="${canva.assets_url}" target="_blank" class="btn-open-assets">🖼️ Ver imagen subida</a>` : ''}
+        </div>
+        ${canva.asset_id
+          ? `<p class="canva-asset-note">✓ Tu imagen del producto fue subida a Canva Assets. Encuéntrala en "Brand Library".</p>`
+          : `<p class="canva-asset-note">Aplica el copy y brief de arriba al diseño.</p>`}
       </div>
     ` : `
       <div class="recreate-canva-link">
-        <p class="canva-note">💡 Para crear en Canva automáticamente agrega <code>CANVA_ACCESS_TOKEN</code> al <code>.env</code></p>
+        <p class="canva-note">💡 Inicia el servidor local (<code>run_api.bat</code>) para subir la imagen a Canva automáticamente.</p>
       </div>
     `;
 
@@ -464,6 +479,72 @@ async function runRecreateFull(adId) {
     statusEl.innerHTML = `<p class="recreate-error">❌ ${esc(err.message)}<br><small>¿Está corriendo el servidor? Ejecuta <code>run_api.bat</code></small></p>`;
     btn.disabled = false;
     btn.textContent = '✨ Generar Ahora';
+  }
+}
+
+async function runCopyStyle(adId) {
+  const brandSlug = document.getElementById('recreate-brand-select').value;
+  const imageUrl = document.getElementById('recreate-image-url').value.trim();
+  const statusEl = document.getElementById('recreate-status');
+  const btn = document.getElementById('btn-copy-style');
+  const btn2 = document.getElementById('btn-generate-now');
+
+  if (!imageUrl) {
+    statusEl.innerHTML = '<p class="recreate-error">⚠️ Ingresa la URL de la imagen del producto.</p>';
+    return;
+  }
+
+  btn.disabled = true; btn2.disabled = true;
+  btn.textContent = 'Generando...';
+  statusEl.innerHTML = `
+    <div class="recreate-loading">
+      <div class="recreate-spinner"></div>
+      <span>GPT-4o analiza el ad... DALL-E 3 genera la imagen... (~20 seg)</span>
+    </div>`;
+
+  try {
+    const res = await fetch(`${API_URL}/recreate-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ad_id: adId, target_brand_slug: brandSlug, product_image_url: imageUrl }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Error del servidor');
+    }
+
+    const data = await res.json();
+    const b = data.brief;
+
+    statusEl.innerHTML = `
+      <div class="recreate-result">
+        <div class="result-section">
+          <p class="modal-section-label">IMAGEN GENERADA — ${esc(data.target_brand.name)}</p>
+          <div class="generated-image-wrap">
+            <img src="${data.generated_image_url}" alt="Ad generado" class="generated-ad-img">
+            <a href="${data.generated_image_url}" download="ad-${adId}.png" target="_blank" class="btn-download-img">⬇ Descargar imagen</a>
+          </div>
+        </div>
+        <div class="result-section">
+          <p class="modal-section-label">COPY EN ESPAÑOL</p>
+          <div class="copy-block">
+            <div class="copy-row"><span class="copy-label">Headline</span><span class="copy-value">${esc(b.headline)}</span></div>
+            <div class="copy-row"><span class="copy-label">Subtitular</span><span class="copy-value">${esc(b.subheadline)}</span></div>
+            <div class="copy-row copy-body-row"><span class="copy-label">Body</span><span class="copy-value">${esc(b.body)}</span></div>
+            <div class="copy-row"><span class="copy-label">CTA</span><span class="copy-value cta-val">${esc(b.cta)}</span></div>
+          </div>
+        </div>
+        <div class="result-hook">
+          <p class="modal-section-label">HOOK ADAPTADO</p>
+          <div class="hook-text">"${esc(b.hook_adapted)}"</div>
+        </div>
+      </div>`;
+    btn.textContent = '✓ Listo';
+  } catch (err) {
+    statusEl.innerHTML = `<p class="recreate-error">❌ ${esc(err.message)}</p>`;
+    btn.disabled = false; btn2.disabled = false;
+    btn.textContent = '⚡ Copiar Estilo Exacto';
   }
 }
 
