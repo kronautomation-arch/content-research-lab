@@ -358,12 +358,19 @@ function openRecreateModal(adId) {
           </label>
           <div class="competitor-img-section">
             <p class="modal-label-text">📸 Imagen del ad del competidor</p>
-            <div id="competitor-img-preview" class="competitor-img-preview">
-              <span class="competitor-img-status" id="competitor-img-status">Cargando imagen...</span>
+            <div id="competitor-img-preview" class="competitor-img-preview competitor-img-dropzone" tabindex="0"
+                 title="Haz clic aquí y pega con Ctrl+V">
+              <div class="competitor-paste-hint">
+                <span class="paste-icon">📋</span>
+                <strong>Ctrl+V para pegar screenshot</strong>
+                <span>Toma captura de pantalla del ad y pega aquí</span>
+                <span class="paste-or">— o —</span>
+                <label class="paste-upload-btn">Seleccionar archivo
+                  <input type="file" id="competitor-image-file" accept="image/*" style="display:none">
+                </label>
+              </div>
             </div>
-            <label class="modal-label-sub">O sube una captura manualmente:
-              <input type="file" id="competitor-image-file" accept="image/*" class="modal-file-input">
-            </label>
+            ${ad.ad_archive_id ? `<a href="https://www.facebook.com/ads/library/?id=${ad.ad_archive_id}" target="_blank" class="competitor-fb-link">Ver ad original en Facebook Ad Library →</a>` : ''}
           </div>
         </div>
 
@@ -392,42 +399,91 @@ function openRecreateModal(adId) {
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 
-  // Verificar servidor + intentar auto-descargar imagen del competidor via proxy
-  fetch(`${API_URL}/health`)
-    .then(() => {
-      // Servidor OK — intentar cargar la imagen del competidor
-      if (ad.thumbnail_url) {
-        const proxyUrl = `${API_URL}/proxy-image?url=${encodeURIComponent(ad.thumbnail_url)}`;
-        const statusEl = document.getElementById('competitor-img-status');
-        const previewEl = document.getElementById('competitor-img-preview');
-        fetch(proxyUrl)
-          .then(r => {
-            if (!r.ok) throw new Error('no-image');
-            return r.blob();
-          })
-          .then(blob => {
-            const objectUrl = URL.createObjectURL(blob);
-            // Guardar como base64 para enviar al backend
-            const reader = new FileReader();
-            reader.onload = () => {
-              previewEl.dataset.b64 = reader.result.split(',')[1];
-            };
-            reader.readAsDataURL(blob);
-            previewEl.innerHTML = `<img src="${objectUrl}" alt="Ad competidor" style="width:100%;border-radius:6px;display:block;">`;
-          })
-          .catch(() => {
-            if (statusEl) statusEl.textContent = 'No se pudo descargar automáticamente — sube la imagen manualmente.';
-          });
-      } else {
-        const statusEl = document.getElementById('competitor-img-status');
-        if (statusEl) statusEl.textContent = 'Sin thumbnail disponible — sube la imagen manualmente.';
+  // Verificar servidor
+  fetch(`${API_URL}/health`).catch(() => {
+    document.getElementById('server-hint').style.display = 'block';
+  });
+
+  // Inicializar zona de paste/upload del competidor
+  _initCompetitorImageZone();
+}
+
+function _setCompetitorImage(blob) {
+  const preview = document.getElementById('competitor-img-preview');
+  if (!preview) return;
+  const objectUrl = URL.createObjectURL(blob);
+  const reader = new FileReader();
+  reader.onload = () => { preview.dataset.b64 = reader.result.split(',')[1]; };
+  reader.readAsDataURL(blob);
+  preview.innerHTML = `
+    <div style="position:relative;width:100%;">
+      <img src="${objectUrl}" alt="Ad competidor" style="width:100%;border-radius:6px;display:block;">
+      <button onclick="_clearCompetitorImage()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+    </div>`;
+}
+
+function _clearCompetitorImage() {
+  const preview = document.getElementById('competitor-img-preview');
+  if (!preview) return;
+  delete preview.dataset.b64;
+  preview.innerHTML = `
+    <div class="competitor-paste-hint">
+      <span class="paste-icon">📋</span>
+      <strong>Ctrl+V para pegar screenshot</strong>
+      <span>Toma captura de pantalla del ad y pega aquí</span>
+      <span class="paste-or">— o —</span>
+      <label class="paste-upload-btn">Seleccionar archivo
+        <input type="file" id="competitor-image-file" accept="image/*" style="display:none" onchange="_onCompetitorFileChange(this)">
+      </label>
+    </div>`;
+  _bindCompetitorFileInput();
+}
+
+function _onCompetitorFileChange(input) {
+  if (input.files && input.files[0]) _setCompetitorImage(input.files[0]);
+}
+
+function _bindCompetitorFileInput() {
+  const input = document.getElementById('competitor-image-file');
+  if (input) input.addEventListener('change', () => _onCompetitorFileChange(input));
+}
+
+function _initCompetitorImageZone() {
+  const preview = document.getElementById('competitor-img-preview');
+  if (!preview) return;
+
+  // Bind file input
+  _bindCompetitorFileInput();
+
+  // Paste handler (Ctrl+V en cualquier parte del modal)
+  const pasteHandler = e => {
+    if (!document.getElementById('recreate-modal')) {
+      document.removeEventListener('paste', pasteHandler);
+      return;
+    }
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items || [];
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        _setCompetitorImage(item.getAsFile());
+        // Flash visual para confirmar
+        preview.style.outline = '2px solid var(--accent)';
+        setTimeout(() => { preview.style.outline = ''; }, 800);
+        break;
       }
-    })
-    .catch(() => {
-      document.getElementById('server-hint').style.display = 'block';
-      const statusEl = document.getElementById('competitor-img-status');
-      if (statusEl) statusEl.textContent = 'Inicia el servidor para auto-cargar la imagen.';
-    });
+    }
+  };
+  document.addEventListener('paste', pasteHandler);
+
+  // Drag & drop
+  preview.addEventListener('dragover', e => { e.preventDefault(); preview.classList.add('drag-over'); });
+  preview.addEventListener('dragleave', () => preview.classList.remove('drag-over'));
+  preview.addEventListener('drop', e => {
+    e.preventDefault();
+    preview.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) _setCompetitorImage(file);
+  });
 }
 
 async function runRecreateFull(adId) {
@@ -549,20 +605,11 @@ async function runCopyStyle(adId) {
     return;
   }
 
-  // Prioridad: archivo manual del usuario > imagen auto-descargada via proxy
+  // Leer imagen del competidor desde el preview (pegada, arrastrada o subida)
   let competitorB64 = '';
-  if (fileInput && fileInput.files && fileInput.files[0]) {
-    try {
-      competitorB64 = await _fileToBase64(fileInput.files[0]);
-    } catch(e) {
-      console.warn('No se pudo leer la imagen del competidor:', e);
-    }
-  }
-  if (!competitorB64) {
-    const previewEl = document.getElementById('competitor-img-preview');
-    if (previewEl && previewEl.dataset.b64) {
-      competitorB64 = previewEl.dataset.b64;
-    }
+  const previewEl = document.getElementById('competitor-img-preview');
+  if (previewEl && previewEl.dataset.b64) {
+    competitorB64 = previewEl.dataset.b64;
   }
 
   btn.disabled = true; btn2.disabled = true;

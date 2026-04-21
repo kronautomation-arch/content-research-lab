@@ -548,6 +548,17 @@ main {
   overflow: hidden; max-height: 220px;
 }
 .competitor-img-status { font-size: 12px; color: var(--text-muted); padding: 12px; text-align: center; }
+.competitor-img-dropzone { cursor: pointer; transition: border-color 0.15s, background 0.15s; min-height: 100px; }
+.competitor-img-dropzone:hover, .competitor-img-dropzone.drag-over { border-color: var(--accent); background: var(--bg-card); }
+.competitor-paste-hint { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 12px; text-align: center; }
+.competitor-paste-hint .paste-icon { font-size: 28px; line-height: 1; }
+.competitor-paste-hint strong { font-size: 13px; color: var(--text); }
+.competitor-paste-hint span { font-size: 11px; color: var(--text-muted); }
+.paste-or { font-size: 11px; color: var(--text-muted); margin: 2px 0; }
+.paste-upload-btn { font-size: 11px; font-weight: 500; color: var(--accent); cursor: pointer; padding: 4px 10px; border: 1px solid var(--accent); border-radius: var(--radius-sm); }
+.paste-upload-btn:hover { background: var(--accent); color: white; }
+.competitor-fb-link { font-size: 11px; color: var(--text-muted); text-decoration: none; margin-top: 4px; display: inline-block; }
+.competitor-fb-link:hover { color: var(--accent); text-decoration: underline; }
 .modal-command-section { display: flex; flex-direction: column; gap: 10px; }
 .modal-command-box {
   padding: 12px 16px; background: #0d1117; border-radius: var(--radius-sm);
