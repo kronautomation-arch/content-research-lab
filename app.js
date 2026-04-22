@@ -815,18 +815,35 @@ function setupGenerateScriptsBtn() {
   btn.addEventListener('click', async () => {
     const slug = document.getElementById('scripts-brand-select').value;
     if (!slug) { alert('Selecciona una marca'); return; }
-    const token = prompt('GitHub Personal Access Token:');
-    if (!token) return;
-    btn.disabled = true; btn.textContent = 'Generando...';
+    const container = document.getElementById('scripts-content');
+    btn.disabled = true;
+    btn.textContent = 'Generando... (5-10 min)';
+    if (container) container.innerHTML = `
+      <div style="padding:40px;text-align:center;">
+        <div class="recreate-spinner" style="width:32px;height:32px;margin:0 auto 16px"></div>
+        <p style="color:var(--text-muted)">Claude está analizando <strong>${esc(slug)}</strong> y escribiendo 10 guiones con 3 variaciones cada uno.<br>Esto puede tardar 5-10 minutos. No cierres esta pestaña.</p>
+      </div>`;
     try {
-      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/generate-scripts.yml/dispatches`, {
+      const res = await fetch(`${API_URL}/pipeline/generate-scripts`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref: 'main', inputs: { brand_slug: slug } }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand_slug: slug }),
       });
-      alert(res.ok ? 'Workflow disparado. Recarga en ~5 min.' : 'Error: ' + await res.text());
-    } catch (e) { alert('Error: ' + e.message); }
-    finally { btn.disabled = false; btn.textContent = 'Generar 10 nuevos \u2192'; }
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Error del servidor'); }
+      const data = await res.json();
+      if (container) container.innerHTML = `
+        <div style="padding:32px;">
+          <p style="color:var(--accent);font-size:1.1rem;font-weight:600;">✓ ${data.templates_generated} guiones generados y publicados</p>
+          <p style="color:var(--text-muted);margin-top:8px;">${esc(data.formula_summary || '')}</p>
+          <p style="color:var(--text-muted);margin-top:8px;">Recarga la página en ~30 segundos para ver los guiones.</p>
+          ${data.errors && data.errors.length ? `<p style="color:var(--error);margin-top:8px;">Advertencias: ${esc(data.errors.join(', '))}</p>` : ''}
+        </div>`;
+    } catch (e) {
+      if (container) container.innerHTML = `<div style="padding:32px;"><p style="color:var(--error);">❌ ${esc(e.message)}</p><p style="color:var(--text-muted);margin-top:8px;">¿Está corriendo run_api.bat?</p></div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Generar 10 nuevos →';
+    }
   });
 }
 
