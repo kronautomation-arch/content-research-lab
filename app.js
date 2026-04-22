@@ -987,6 +987,36 @@ async function pipeStep1Validate() {
   }
 }
 
+async function pipeStep2Skip() {
+  if (!_pipeState.brandSlug) { _pipeSetResult(2, '<p class="pipe-error">Completa el paso 1 primero.</p>'); return; }
+  _pipeLoading(2, 'Cargando competidores desde Supabase...');
+  try {
+    const r = await fetch(`${API_URL}/pipeline/competitors/${_pipeState.brandSlug}`);
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || 'Error'); }
+    const data = await r.json();
+    if (!data.count) throw new Error('No hay competidores guardados para esta marca. Usa "Buscar competidores" primero.');
+    _pipeSetStatus(2, '✓ skip', true);
+    _pipeSetResult(2, `<p class="pipe-ok">✓ ${data.count} competidores ya en Supabase. Saltando descubrimiento.</p>`);
+    // Mostrar en paso 3 como lista informativa
+    const list = document.getElementById('candidates-list');
+    if (list) {
+      list.innerHTML = data.competitors.map(c => `
+        <div class="pipe-log-line">✓ <strong>${esc(c.name || 'Competidor ' + c.facebook_page_id)}</strong> · ID: ${esc(c.facebook_page_id)}</div>
+      `).join('');
+    }
+    document.getElementById('btn-skip-competitors').style.display = 'block';
+    _pipeUnlock(3);
+  } catch(e) {
+    _pipeSetResult(2, `<p class="pipe-error">❌ ${esc(e.message)}</p>`);
+  }
+}
+
+function pipeStep3Skip() {
+  _pipeSetStatus(3, '✓ skip', true);
+  _pipeSetResult(3, '<p class="pipe-ok">✓ Competidores confirmados en Supabase. Pasando al scrape.</p>');
+  _pipeUnlock(4);
+}
+
 async function pipeStep2Discover() {
   if (!_pipeState.brandSlug) { _pipeSetResult(2, '<p class="pipe-error">Completa el paso 1 primero.</p>'); return; }
   _pipeLoading(2, 'Buscando competidores en Facebook Ad Library (puede tardar 2-5 min)...');

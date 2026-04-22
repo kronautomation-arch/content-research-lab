@@ -245,7 +245,10 @@
         <span class="step-status" id="step-2-status"></span>
       </div>
       <div class="step-body">
-        <button class="pipe-btn" onclick="pipeStep2Discover()">🔍 Buscar competidores (Apify)</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="pipe-btn" onclick="pipeStep2Discover()">🔍 Buscar competidores (Apify)</button>
+          <button class="pipe-btn" style="background:var(--bg-hover);color:var(--text)" onclick="pipeStep2Skip()">Ya tengo competidores → Saltar</button>
+        </div>
         <div id="step-2-result" class="step-result"></div>
       </div>
     </div>
@@ -263,6 +266,7 @@
       <div class="step-body">
         <div id="candidates-list" class="candidates-list"></div>
         <button class="pipe-btn" id="btn-add-competitors" onclick="pipeStep3Add()" style="display:none">✅ Agregar seleccionados</button>
+        <button class="pipe-btn" id="btn-skip-competitors" onclick="pipeStep3Skip()" style="display:none;background:var(--bg-hover);color:var(--text)">Ya están en Supabase → Saltar al scrape</button>
         <div id="step-3-result" class="step-result"></div>
       </div>
     </div>
