@@ -306,7 +306,7 @@ function filterCompAds(brand) {
 // ============================================
 // RECREAR AD CON CANVA
 // ============================================
-const API_URL = 'http://127.0.0.1:8000';
+const API_URL = 'https://api.research.kronautomation.co';
 
 function openRecreateModal(adId) {
   const ad = _adMap[adId];
