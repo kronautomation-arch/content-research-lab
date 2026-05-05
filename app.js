@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   await loadData();
   setupAddBrandForm();
+  if (typeof mountLogoutButton === 'function') mountLogoutButton();
   setupGenerateScriptsBtn();
 });
 
