@@ -22,6 +22,7 @@
       <a href="#" class="nav-link" data-tab="overview">Overview</a>
       <a href="#" class="nav-link" data-tab="brands">Por Marca</a>
       <a href="#" class="nav-link" data-tab="scripts">Guiones</a>
+      <a href="#" class="nav-link" data-tab="creation">🎨 Creación</a>
       <a href="#" class="nav-link" data-tab="tutorial">Como Usar</a>
     </div>
   </div>
@@ -322,6 +323,105 @@
     </div>
 
   </div>
+</section>
+
+<!-- TAB: CREACIÓN -->
+<section id="tab-creation" class="tab-content">
+
+  <div class="hero">
+    <p class="hero-label">Studio creativo</p>
+    <h1 class="hero-title">Imágenes con<br><em>Claude + gpt-image-2</em></h1>
+    <p class="hero-sub">Sube productos y referencias por marca. Escribe lo que quieres.<br>Claude planea, gpt-image-2 ejecuta.</p>
+  </div>
+
+  <div class="section creation-toolbar">
+    <div class="creation-toolbar-left">
+      <label class="creation-label">Marca</label>
+      <select id="creation-brand-select"></select>
+    </div>
+    <div class="creation-toolbar-right">
+      <button id="creation-style-dna-btn" class="btn-ghost">📝 STYLE_DNA</button>
+      <button id="creation-refresh-btn" class="btn-ghost">↻ Recargar</button>
+    </div>
+  </div>
+
+  <div class="creation-assets">
+    <div class="asset-pane">
+      <div class="asset-pane-head">
+        <h3>Productos <span class="asset-hint">(fondo blanco)</span></h3>
+        <label class="btn-ghost upload-btn">
+          + Subir
+          <input type="file" id="creation-upload-products" multiple accept="image/*" hidden>
+        </label>
+      </div>
+      <div id="creation-products-grid" class="asset-grid"></div>
+    </div>
+
+    <div class="asset-pane">
+      <div class="asset-pane-head">
+        <h3>Referencias <span class="asset-hint">(inspiración)</span></h3>
+        <label class="btn-ghost upload-btn">
+          + Subir
+          <input type="file" id="creation-upload-references" multiple accept="image/*" hidden>
+        </label>
+      </div>
+      <div id="creation-references-grid" class="asset-grid"></div>
+    </div>
+  </div>
+
+  <div class="section creation-prompt-section">
+    <label class="creation-label">Instrucción para Claude</label>
+    <textarea id="creation-instruction" rows="4" placeholder="Ej: Genera 3 imágenes 1:1 con vibra fitness al amanecer + 2 imágenes 9:16 estilo editorial para stories de IG"></textarea>
+    <div class="creation-prompt-controls">
+      <label class="creation-checkbox">
+        <input type="checkbox" id="creation-use-style-dna" checked>
+        <span>Incluir STYLE_DNA en el contexto</span>
+      </label>
+      <label class="creation-label-inline">
+        Calidad
+        <select id="creation-quality">
+          <option value="low">low (rápida)</option>
+          <option value="medium" selected>medium</option>
+          <option value="high">high (lenta)</option>
+        </select>
+      </label>
+      <button id="creation-generate-btn" class="btn-primary">▶ Generar con Claude</button>
+    </div>
+  </div>
+
+  <div id="creation-job-panel" class="section creation-job-panel" hidden>
+    <div class="job-header">
+      <h3 id="creation-job-status">⏳ Planeando...</h3>
+      <span id="creation-job-progress"></span>
+    </div>
+    <div class="job-progress-bar"><div id="creation-job-bar"></div></div>
+    <div id="creation-job-plan" class="creation-plan"></div>
+  </div>
+
+  <div class="section creation-results-section">
+    <div class="scripts-top">
+      <div>
+        <p class="section-label">Resultados</p>
+        <p class="section-desc" id="creation-results-subtitle">Sin generaciones todavía</p>
+      </div>
+    </div>
+    <div id="creation-results-grid" class="results-grid"></div>
+  </div>
+
+  <!-- Modal STYLE_DNA -->
+  <div id="creation-style-modal" class="creation-modal" hidden>
+    <div class="creation-modal-inner">
+      <div class="creation-modal-head">
+        <h3>STYLE_DNA · <span id="creation-style-brand"></span></h3>
+        <button id="creation-style-close" class="btn-ghost">×</button>
+      </div>
+      <textarea id="creation-style-content" rows="20" placeholder="Pega aquí el STYLE_DNA.md de la marca..."></textarea>
+      <div class="creation-modal-actions">
+        <button id="creation-style-save" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
 </section>
 
 </main>

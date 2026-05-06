@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.appendChild(btn);
   }
   setupGenerateScriptsBtn();
+  setupCreationTab();
 });
 
 // ============================================
@@ -1193,3 +1194,304 @@ async function pipeStep6Export() {
   }
 }
 
+// ============================================
+// TAB: CREACIÓN
+// ============================================
+const CREATION_STATE = {
+  brand: null,
+  products: [],
+  references: [],
+  styleDna: null,
+  selectedProducts: new Set(),
+  selectedReferences: new Set(),
+  jobId: null,
+  pollTimer: null,
+};
+
+function setupCreationTab() {
+  const sel = document.getElementById('creation-brand-select');
+  if (!sel) return;
+
+  sel.addEventListener('change', () => {
+    CREATION_STATE.brand = sel.value;
+    CREATION_STATE.selectedProducts.clear();
+    CREATION_STATE.selectedReferences.clear();
+    loadCreationBrandAssets();
+    loadCreationGenerations();
+  });
+
+  document.getElementById('creation-refresh-btn').addEventListener('click', () => {
+    loadCreationBrandAssets();
+    loadCreationGenerations();
+  });
+
+  document.getElementById('creation-style-dna-btn').addEventListener('click', openStyleDnaModal);
+  document.getElementById('creation-style-close').addEventListener('click', closeStyleDnaModal);
+  document.getElementById('creation-style-save').addEventListener('click', saveStyleDna);
+
+  document.getElementById('creation-upload-products').addEventListener('change', e => uploadAssets(e.target, 'products'));
+  document.getElementById('creation-upload-references').addEventListener('change', e => uploadAssets(e.target, 'references'));
+
+  document.getElementById('creation-generate-btn').addEventListener('click', startGeneration);
+
+  loadCreationBrands();
+}
+
+async function loadCreationBrands() {
+  try {
+    const r = await fetch(`${API_URL}/content/brands`);
+    const data = await r.json();
+    const sel = document.getElementById('creation-brand-select');
+    sel.innerHTML = data.map(b => `<option value="${esc(b.slug)}">${esc(b.label)}</option>`).join('');
+    CREATION_STATE.brand = sel.value;
+    await loadCreationBrandAssets();
+    await loadCreationGenerations();
+  } catch(e) {
+    console.error('loadCreationBrands', e);
+  }
+}
+
+async function loadCreationBrandAssets() {
+  if (!CREATION_STATE.brand) return;
+  try {
+    const r = await fetch(`${API_URL}/content/${CREATION_STATE.brand}/list`);
+    const data = await r.json();
+    CREATION_STATE.products = data.products || [];
+    CREATION_STATE.references = data.references || [];
+    CREATION_STATE.styleDna = data.style_dna || null;
+    renderAssetGrid('products');
+    renderAssetGrid('references');
+  } catch(e) {
+    console.error('loadCreationBrandAssets', e);
+  }
+}
+
+function renderAssetGrid(kind) {
+  const grid = document.getElementById(`creation-${kind}-grid`);
+  const items = CREATION_STATE[kind];
+  const selected = kind === 'products' ? CREATION_STATE.selectedProducts : CREATION_STATE.selectedReferences;
+  if (!items.length) {
+    grid.innerHTML = '<p class="asset-empty">Sin imágenes. Sube algunas con + Subir.</p>';
+    return;
+  }
+  grid.innerHTML = items.map(item => {
+    const isSel = selected.has(item.key);
+    const name = item.key.split('/').pop();
+    return `
+      <div class="asset-tile ${isSel ? 'selected' : ''}" data-key="${esc(item.key)}" data-kind="${kind}">
+        <img src="${esc(item.url)}" alt="" loading="lazy">
+        <button class="asset-delete" data-key="${esc(item.key)}" data-kind="${kind}" title="Borrar">×</button>
+        <span class="asset-name">${esc(name)}</span>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('.asset-tile').forEach(tile => {
+    tile.addEventListener('click', e => {
+      if (e.target.classList.contains('asset-delete')) return;
+      const k = tile.dataset.key;
+      const kd = tile.dataset.kind;
+      const set = kd === 'products' ? CREATION_STATE.selectedProducts : CREATION_STATE.selectedReferences;
+      if (set.has(k)) set.delete(k);
+      else set.add(k);
+      tile.classList.toggle('selected');
+    });
+  });
+
+  grid.querySelectorAll('.asset-delete').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!confirm('¿Borrar esta imagen?')) return;
+      const k = btn.dataset.key;
+      const kd = btn.dataset.kind;
+      const filename = k.split('/').pop();
+      try {
+        await fetch(`${API_URL}/content/${CREATION_STATE.brand}/asset/${kd}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+        await loadCreationBrandAssets();
+      } catch(err) { alert('Error: ' + err.message); }
+    });
+  });
+}
+
+async function uploadAssets(input, kind) {
+  if (!CREATION_STATE.brand || !input.files.length) return;
+  const fd = new FormData();
+  fd.append('kind', kind);
+  for (const f of input.files) fd.append('files', f);
+  const btn = input.closest('label');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) btn.textContent = 'Subiendo...';
+  try {
+    const r = await fetch(`${API_URL}/content/${CREATION_STATE.brand}/upload`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    await loadCreationBrandAssets();
+  } catch(e) {
+    alert('Error subiendo: ' + e.message);
+  } finally {
+    if (btn) btn.innerHTML = '+ Subir <input type="file" id="creation-upload-' + kind + '" multiple accept="image/*" hidden>';
+    // re-bind nuevo input
+    const newInput = document.getElementById('creation-upload-' + kind);
+    if (newInput) newInput.addEventListener('change', e => uploadAssets(e.target, kind));
+    input.value = '';
+  }
+}
+
+function openStyleDnaModal() {
+  if (!CREATION_STATE.brand) return;
+  const modal = document.getElementById('creation-style-modal');
+  document.getElementById('creation-style-brand').textContent = CREATION_STATE.brand;
+  document.getElementById('creation-style-content').value = CREATION_STATE.styleDna || '';
+  modal.hidden = false;
+}
+
+function closeStyleDnaModal() {
+  document.getElementById('creation-style-modal').hidden = true;
+}
+
+async function saveStyleDna() {
+  if (!CREATION_STATE.brand) return;
+  const content = document.getElementById('creation-style-content').value;
+  try {
+    const r = await fetch(`${API_URL}/content/${CREATION_STATE.brand}/style-dna`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    CREATION_STATE.styleDna = content;
+    closeStyleDnaModal();
+  } catch(e) {
+    alert('Error guardando STYLE_DNA: ' + e.message);
+  }
+}
+
+async function startGeneration() {
+  if (!CREATION_STATE.brand) { alert('Selecciona una marca'); return; }
+  const instruction = document.getElementById('creation-instruction').value.trim();
+  if (!instruction) { alert('Escribe una instrucción'); return; }
+  const useDna = document.getElementById('creation-use-style-dna').checked;
+  const quality = document.getElementById('creation-quality').value;
+  const productKeys = [...CREATION_STATE.selectedProducts];
+  const referenceKeys = [...CREATION_STATE.selectedReferences];
+
+  const btn = document.getElementById('creation-generate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const r = await fetch(`${API_URL}/content/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        brand: CREATION_STATE.brand,
+        instruction,
+        product_keys: productKeys,
+        reference_keys: referenceKeys,
+        use_style_dna: useDna,
+        quality
+      })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    CREATION_STATE.jobId = data.job_id;
+    showJobPanel();
+    pollJob();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Generar con Claude';
+  }
+}
+
+function showJobPanel() {
+  document.getElementById('creation-job-panel').hidden = false;
+  document.getElementById('creation-job-status').textContent = '⏳ Planeando con Claude...';
+  document.getElementById('creation-job-progress').textContent = '';
+  document.getElementById('creation-job-bar').style.width = '0%';
+  document.getElementById('creation-job-plan').innerHTML = '';
+}
+
+async function pollJob() {
+  if (!CREATION_STATE.jobId) return;
+  if (CREATION_STATE.pollTimer) clearTimeout(CREATION_STATE.pollTimer);
+
+  try {
+    const r = await fetch(`${API_URL}/content/jobs/${CREATION_STATE.jobId}`);
+    if (!r.ok) throw new Error(await r.text());
+    const job = await r.json();
+    renderJob(job);
+
+    if (job.status === 'running' || job.status === 'queued') {
+      CREATION_STATE.pollTimer = setTimeout(pollJob, 3000);
+    } else {
+      await loadCreationGenerations();
+    }
+  } catch(e) {
+    document.getElementById('creation-job-status').textContent = '❌ Error: ' + e.message;
+  }
+}
+
+function renderJob(job) {
+  const total = (job.plan && job.plan.length) || 0;
+  const done = (job.results && job.results.length) || 0;
+  const failed = (job.failed && job.failed.length) || 0;
+  const pct = total ? Math.round(((done + failed) / total) * 100) : 0;
+
+  let label = '';
+  if (job.status === 'queued') label = '⏳ En cola...';
+  else if (job.status === 'running' && total === 0) label = '⏳ Claude está planeando...';
+  else if (job.status === 'running') label = `⏳ Generando ${done + failed}/${total}...`;
+  else if (job.status === 'completed') label = `✅ ${done} imágenes listas`;
+  else if (job.status === 'partial') label = `⚠ ${done} listas · ${failed} fallaron`;
+  else if (job.status === 'failed') label = `❌ ${esc(job.error || 'falló')}`;
+  else label = job.status;
+
+  document.getElementById('creation-job-status').textContent = label;
+  document.getElementById('creation-job-progress').textContent = total ? `${done + failed}/${total}` : '';
+  document.getElementById('creation-job-bar').style.width = pct + '%';
+
+  if (job.plan && job.plan.length) {
+    document.getElementById('creation-job-plan').innerHTML = `
+      <p class="plan-label">📋 Plan de Claude</p>
+      <ol class="plan-list">
+        ${job.plan.map((it, i) => {
+          const result = (job.results || []).find(r => r.n === i);
+          const fail = (job.failed || []).find(f => f.n === i);
+          let badge = '';
+          if (result) badge = `<a href="${esc(result.url)}" target="_blank" class="plan-badge ok">✓ ver</a>`;
+          else if (fail) badge = `<span class="plan-badge fail" title="${esc(fail.error || '')}">✗ falló</span>`;
+          else badge = `<span class="plan-badge pending">…</span>`;
+          return `<li>
+            <strong>${esc(it.concept_label || 'item ' + (i+1))}</strong>
+            <span class="plan-meta">${esc(it.size)}</span>
+            ${badge}
+            <p class="plan-prompt">${esc((it.prompt || '').slice(0, 180))}${(it.prompt || '').length > 180 ? '…' : ''}</p>
+          </li>`;
+        }).join('')}
+      </ol>
+    `;
+  }
+}
+
+async function loadCreationGenerations() {
+  if (!CREATION_STATE.brand) return;
+  try {
+    const r = await fetch(`${API_URL}/content/${CREATION_STATE.brand}/generations`);
+    const data = await r.json();
+    const grid = document.getElementById('creation-results-grid');
+    const sub = document.getElementById('creation-results-subtitle');
+    const jobs = Array.isArray(data) ? data : [];
+    const allImages = jobs.flatMap(j => (j.results || []).map(r => ({ ...r, instruction: j.instruction, created_at: j.created_at })));
+    sub.textContent = allImages.length
+      ? `${allImages.length} imagen${allImages.length === 1 ? '' : 'es'} en ${CREATION_STATE.brand}`
+      : 'Sin generaciones todavía';
+    grid.innerHTML = allImages.map(it => `
+      <a href="${esc(it.url)}" target="_blank" class="result-tile" title="${esc(it.concept_label || '')}">
+        <img src="${esc(it.url)}" alt="" loading="lazy">
+      </a>
+    `).join('');
+  } catch(e) {
+    console.error('loadCreationGenerations', e);
+  }
+}
