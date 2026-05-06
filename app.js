@@ -13,7 +13,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   await loadData();
   setupAddBrandForm();
-  if (typeof mountLogoutButton === 'function') mountLogoutButton();
+  // Logout button (admin auth)
+  if (window.kronAdmin && !document.getElementById('kron-logout-btn')) {
+    const btn = document.createElement('button');
+    btn.id = 'kron-logout-btn';
+    btn.innerHTML = '⏻';
+    btn.title = 'Cerrar sesión';
+    btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:44px;height:44px;border-radius:14px;border:1px solid rgba(190,18,60,.3);background:rgba(190,18,60,.14);color:#fb7185;font-size:18px;font-weight:700;cursor:pointer;z-index:9999;backdrop-filter:blur(12px)';
+    btn.onclick = () => window.kronAdmin.signOut();
+    document.body.appendChild(btn);
+  }
   setupGenerateScriptsBtn();
 });
 
